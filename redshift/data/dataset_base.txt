@@ -1,0 +1,13 @@
+#Base data for Operating systems dataset
+
+name: random
+country: brazil, random
+state: SC, RS, random
+age: random
+os: linux, windows, mac
+rich: yes, no, he/she think so, not at all, just crazy
+insane: yes, no, for sure, couldn't be more lucid
+is nice: yes, no, sometimes
+bad reason mac: newbies, dummies, don't know what's doing, like the apple, read steve jobs book, feels good using an overpriced product, because people say it's good
+good reason windows: productivity, compatibility, gaming, has linux, has evolved since windows 10
+good reason linux: like to develop their own drivers, security, for work, lightweight, GUi has evolved, usability is nice, the Original Linux, 
