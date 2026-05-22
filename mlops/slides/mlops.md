@@ -67,4 +67,26 @@ The main focus of the _“ML Operations”_ phase is to deliver the previously
 3. **CI/CD pipeline automation.** In the final stage, we introduce a CI/CD system to perform fast and reliable ML model deployments in production. The core difference from the previous step is that we now automatically build, test, and deploy the Data, ML Model, and the ML training pipeline components.
 
 ---
+# Possibilidades
 
+## customer churn
+
+## Treinar uma LLM
+Não, LLMOps e MLOps não são coisas muito diferentes. O LLMOps é, na verdade, uma evolução direta e uma subárea do MLOps.
+A principal diferença está no foco: enquanto o MLOps tradicional lida com dados estruturados e treinamento de modelos próprios, o LLMOps lida com modelos massivos pré-treinados, engenharia de prompts e saídas de texto imprevisíveis.
+
+
+É possível usar uma LLM para uma apresentação de MLOps?
+Sim, é totalmente possível e recomendado. Usar uma LLM em uma demonstração de MLOps é uma excelente forma de atrair a atenção do público, pois os resultados são visíveis e fáceis de entender imediatamente.
+Para que o experimento faça sentido em uma apresentação de MLOps, você não deve focar no chat em si, mas sim no processo de engenharia ao redor dele.
+Ideias de Experimentos para Apresentar
+Aqui estão três ideias de demonstrações práticas que conectam os dois mundos:
+1. Monitoramento de Custos e Latência (Observabilidade)
+O experimento: Crie um script simples que faz perguntas a uma LLM (como o GPT-4o ou Claude).
+O foco em MLOps: Use uma ferramenta como LangSmith ou Phoenix (Arize) para mostrar um painel em tempo real. Exiba ao público o custo de cada pergunta em centavos, o tempo de resposta (latência) e como uma pergunta longa consome mais recursos.
+2. Teste de Regressão de Prompts (CI/CD)
+O experimento: Mostre o que acontece quando você muda uma instrução no sistema (ex: mudar de "Seja formal" para "Seja um pirata").
+O foco em MLOps: Demonstre um pipeline automatizado que testa o novo prompt contra 5 perguntas padrão antes de ir para a apresentação. Mostre o relatório comparando as duas versões para garantir que a mudança não quebrou o sistema.
+3. Filtro de Segurança e Moderação (Guardrails)
+O experimento: Tente fazer a LLM vazar informações fingindo ser um hacker (prompt injection).
+O foco em MLOps: Mostre uma camada de código intermediária (como o NeMo Guardrails) bloqueando a tentativa antes que ela chegue ao modelo. Isso demonstra o pilar de governança e segurança de modelos do MLOps.
