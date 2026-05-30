@@ -1,3 +1,56 @@
+https://aws.amazon.com/what-is/machine-learning/#what-are-machine-learning-use-cases--1v16f8s
+## Are machine learning models deterministic?
+If a system’s output is predictable, then it is said to be deterministic. Most software applications respond predictably to the user's action, so you can say: “If the user does this, he gets that.” However, machine learning algorithms learn through observation along with experiences. Therefore, they are probabilistic in nature. The statement now changes to: “If the user does this, there is an X% chance of that happening.”
+
+In machine learning, determinism is a strategy used while applying the learning methods described above. Any of the supervised, unsupervised, and other training methods can be made deterministic depending on the business's desired outcomes. The research question, data retrieval, structure, and storage decisions determine if a deterministic or non-deterministic strategy is adopted.
+
+### Deterministic vs. probabilistic approach
+The deterministic approach focuses on the accuracy and the amount of data collected, so efficiency is prioritized over uncertainty. On the other hand, the non-deterministic (or probabilistic) process is designed to manage the chance factor. Built-in tools are integrated into machine learning algorithms to help quantify, identify, and measure uncertainty during learning and observation.
+
+## What are machine learning use cases?
+Let’s take a look at machine learning applications in some key industries:
+
+Manufacturing
+Healthcare and life sciences
+Financial services
+Retail
+Media and entertainment
+Computer vision
+
+
+
+
+
+
+https://aws.amazon.com/what-is/machine-learning/
+
+## What's Machine learning 
+https://aws.amazon.com/what-is/machine-learning/
+
+```
+Machine learning is a type of artificial intelligence that performs data analysis tasks without explicit instructions. Machine learning technology can process large quantities of historical data, identify patterns, and predict new relationships between previously unknown data. You can perform classification and prediction tasks on documents, images, numbers, and other data types. 
+
+For example, a financial organization could train a machine learning system to classify fraudulent and genuine transactions. The system identifies patterns in known data to accurately guess or predict whether a new transaction is genuine.
+```
+ML is short for Machine Learning which is a branch of artificial intelligence (AI) and computer science that leverages data and algorithms to enable AI systems to learn and improve in a manner similar to humans, progressively enhancing their accuracy over time.
+
+
+## What is the difference between machine learning vs. artificial intelligence?
+While the terms machine learning and artificial intelligence (AI) are used interchangeably, they are not the same. Machine learning is one of many branches of AI. While machine learning is AI, not all AI activities can be called machine learning.
+
+Artificial intelligence is the broader concept of making machines more human-like, while machine learning is a subset focused on teaching computers to learn from data without explicit programming. AI includes everything from smart assistants like Alexa, chatbots, and image generators to robotic vacuum cleaners and self-driving cars. 
+
+In contrast, machine learning models perform more specific data analysis tasks—like classifying documents, labeling images, or predicting the maintenance schedule of factory equipment. Machine learning technology is primarily based on mathematics and statistics, while other types of AI are more complex. Essentially, machine learning is a method to achieve artificial intelligence.
+
+## How does machine learning work?
+
+The central idea behind machine learning is an existing mathematical relationship between any input and output data combination. The machine learning model does not know this relationship in advance but can guess if sufficient examples of input-output data sets are given. This means every machine learning algorithm is built around a modifiable math function. The underlying principle can be understood like this:
+
+We ‘train’ the algorithm by giving it the following input/output (i,o) combinations – (2,10), (5,19), and (9,31)
+The algorithm computes the relationship between input and output to be: o=3*i+4
+We then give it input 7 and ask it to predict the output. It can automatically determine the output as 25.
+While this is a basic understanding, machine learning focuses on the principle that computer systems can mathematically link all complex data points as long as they have sufficient data and computing power to process. Therefore, the accuracy of the output is directly co-relational to the magnitude of the input given. Machine learning phases are given below.
+
 # 1. What's MLOps
 
 ## 1. Principles
