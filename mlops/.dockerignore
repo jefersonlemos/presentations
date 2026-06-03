@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.git/
+.agents/
+.codex/
+mlruns/
+mlflow.db
+artifacts/failure_model/
+artifacts/failure_model_basic/

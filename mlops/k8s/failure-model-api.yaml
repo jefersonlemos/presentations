@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-poc
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: failure-model-api-config
+  namespace: mlops-poc
+data:
+  MODEL_PATH: /app/artifacts/failure_model_events/model.joblib
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: failure-model-api
+  namespace: mlops-poc
+  labels:
+    app: failure-model-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: failure-model-api
+  template:
+    metadata:
+      labels:
+        app: failure-model-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+        - name: api
+          image: ttl.sh/failure-model-api-1780445600:24h
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: failure-model-api-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: failure-model-api
+  namespace: mlops-poc
+  labels:
+    app: failure-model-api
+spec:
+  type: ClusterIP
+  selector:
+    app: failure-model-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
