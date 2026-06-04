@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+COPY requirements-training.txt .
+RUN pip install --no-cache-dir -r requirements-training.txt
+
+COPY data/ ./data/
+COPY src/ ./src/
+
+ENTRYPOINT ["python3", "src/train_failure_model.py"]

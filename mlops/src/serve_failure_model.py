@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from starlette.responses import Response
 
 
-DEFAULT_MODEL_PATH = "artifacts/failure_model_events/model.joblib"
+DEFAULT_MODEL_PATH = "/models/model.joblib"
 MODEL_PATH = Path(os.getenv("MODEL_PATH", DEFAULT_MODEL_PATH))
 
 REQUEST_COUNT = Counter(

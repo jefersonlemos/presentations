@@ -5,5 +5,4 @@ __pycache__/
 .codex/
 mlruns/
 mlflow.db
-artifacts/failure_model/
-artifacts/failure_model_basic/
+artifacts/

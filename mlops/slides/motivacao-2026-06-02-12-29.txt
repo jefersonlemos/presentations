@@ -1,0 +1,71 @@
+Page 1
+ML Algorithms 30/05/26
+Dividas
+Quals or algoritmos
+Is so envolve modelor de LCM on ◦ que?
+Pg nar door Pala de dataset, me parecem mais coira pra and lire bareada em dador, modelor mais especializador falvez
+
+Page 2
+Motivoro
+Machine learning pipeline
+↳ set of operations
+to produce a model
+↳ mathematical representation of a real world-process
+↳ a function that takes input
+data and produces an output ( classification, sentiment, recommen­dation or clusters
+Performance of a model
+↳ by using evaluation metrics
+↳ precision& recall ↳ accuracy
+Include ML into software systems because it solves problems that can be too complex to be solved traditionally MC might be the right way to pursue it.
+
+Page 3
+For instance
+-Perceptive problems → large number of elements can be fixed with with different representations speech recognition
+sentiment analysis
+-Multi-parameters problems
+↳ stock prices prediction
+Goal → make models available to software systems
+1.. to provide functionalities
+-Recommendation
+Top items
+Classification
+Content generation
+Spam detection
+Fraud
+2. Time to deploy
+Between a week to 3 months or even an year ↳ Main challenger people face when developing ML models
+↳ Scale, Version Control, Reproducibility, aligning stakeholders.
+
+Page 4
+e sloyment Gap
+Business need it → we need to deploy it to prod
+Other software systems populate data back, then model is trained again
+Deployment is different: Data, ML model and Code
+↳ build trigger → combination of code change, data change or model change Principle: Changing Anything Changes Everything
+NEW DATA ML ALGORITHM CHANGED
+DATA MODEL DE
+RE-LABELING DIFFERENT MODEL
+
+Page 5
+Examples of scenarios to change an MP App
+⚠️ Model starts to decay, behave abnormaly
+needs new data to re-train the model
+2 New data, re-label training data, re-train the model
+3 Wrong assumptions, needs to re-train the model
+4 Business objective change
+MC is expanding, business needs are changing fart
+☆ Details
+1. Model decay because real-time data changes It hasn't been seen during the model training
+
+Page 6
+111 OPS
+L
+-Extension of Devops Methodology to include MC and Data Science assets as first-class citizens " within the Devops ecology
+-Alternatively over term MLE( Mach, Lear Engineering) ↳ a MLE: Use of scientific principles, tools and techniques of ML and traditional software engineering to design and build complex computing systems. Encompasses all stages from data collection, model building, make it available for use by the product
+-Separating ML Model development from process that delivers it lowers the quality and agility.
+Usando lapis pra diferenciar, pra contraufar.
+Agora é am lapis, o outro era caneta
+
+Page 7
+-Evolution of# MLOPS
+Tem una imagem no Obsidian
