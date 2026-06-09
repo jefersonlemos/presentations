@@ -1,0 +1,281 @@
+# PIPELINE DEFINITION
+# Name: kubernetes-failure-prediction
+# Inputs:
+#    feature_set: str [Default: 'events']
+#    minimum_f1_weighted: float [Default: 0.8]
+#    run_name: str [Default: 'kubeflow-random-forest-events']
+#    source_data_path: str [Default: 'data/kubernetes_failures.csv']
+#    tracking_uri: str [Default: 'http://mlflow.mlops-poc.svc.cluster.local:5000']
+components:
+  comp-evaluate-model:
+    executorLabel: exec-evaluate-model
+    inputDefinitions:
+      artifacts:
+        model_artifacts:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+  comp-prepare-data:
+    executorLabel: exec-prepare-data
+    inputDefinitions:
+      parameters:
+        source_data_path:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-prepare-deployment:
+    executorLabel: exec-prepare-deployment
+    inputDefinitions:
+      artifacts:
+        decision:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        model_artifacts:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        deployment_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-select-model:
+    executorLabel: exec-select-model
+    inputDefinitions:
+      artifacts:
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+        model_artifacts:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+      parameters:
+        minimum_f1_weighted:
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        decision:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        feature_set:
+          parameterType: STRING
+        run_name:
+          parameterType: STRING
+        tracking_uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        model_artifacts:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-evaluate-model:
+      container:
+        args:
+        - cp "$0/metrics.json" "$1"
+        - '{{$.inputs.artifacts[''model_artifacts''].path}}'
+        - '{{$.outputs.artifacts[''metrics''].path}}'
+        command:
+        - sh
+        - -c
+        image: ttl.sh/failure-model-training-REPLACE:24h
+    exec-prepare-data:
+      container:
+        args:
+        - mkdir -p $(dirname "$1") && cp "$0" "$1"
+        - '{{$.inputs.parameters[''source_data_path'']}}'
+        - '{{$.outputs.artifacts[''prepared_data''].path}}'
+        command:
+        - sh
+        - -c
+        image: ttl.sh/failure-model-training-REPLACE:24h
+    exec-prepare-deployment:
+      container:
+        args:
+        - import json,sys;decision=json.load(open(sys.argv[2]));manifest='MODEL_PATH='
+          + sys.argv[1] + '/model.joblib\n'+ 'SELECTED=' + str(decision['selected']).lower()
+          + '\n';open(sys.argv[3], 'w').write(manifest)
+        - '{{$.inputs.artifacts[''model_artifacts''].path}}'
+        - '{{$.inputs.artifacts[''decision''].path}}'
+        - '{{$.outputs.artifacts[''deployment_manifest''].path}}'
+        command:
+        - python3
+        - -c
+        image: ttl.sh/failure-model-training-REPLACE:24h
+    exec-select-model:
+      container:
+        args:
+        - 'import json,sys;metrics=json.load(open(sys.argv[1]));f1=metrics[''f1_weighted''];decision={''selected'':
+          f1 >= float(sys.argv[3]), ''f1_weighted'': f1, ''model_dir'': sys.argv[2]};json.dump(decision,
+          open(sys.argv[4], ''w''), indent=2)'
+        - '{{$.inputs.artifacts[''metrics''].path}}'
+        - '{{$.inputs.artifacts[''model_artifacts''].path}}'
+        - '{{$.inputs.parameters[''minimum_f1_weighted'']}}'
+        - '{{$.outputs.artifacts[''decision''].path}}'
+        command:
+        - python3
+        - -c
+        image: ttl.sh/failure-model-training-REPLACE:24h
+    exec-train-model:
+      container:
+        args:
+        - src/train_failure_model.py
+        - --data
+        - '{{$.inputs.artifacts[''prepared_data''].path}}'
+        - --output-dir
+        - '{{$.outputs.artifacts[''model_artifacts''].path}}'
+        - --feature-set
+        - '{{$.inputs.parameters[''feature_set'']}}'
+        - --run-name
+        - '{{$.inputs.parameters[''run_name'']}}'
+        - --tracking-uri
+        - '{{$.inputs.parameters[''tracking_uri'']}}'
+        command:
+        - python3
+        image: ttl.sh/failure-model-training-REPLACE:24h
+pipelineInfo:
+  name: kubernetes-failure-prediction
+root:
+  dag:
+    tasks:
+      evaluate-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-evaluate-model
+        dependentTasks:
+        - train-model
+        inputs:
+          artifacts:
+            model_artifacts:
+              taskOutputArtifact:
+                outputArtifactKey: model_artifacts
+                producerTask: train-model
+        taskInfo:
+          name: evaluate-model
+      prepare-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-prepare-data
+        inputs:
+          parameters:
+            source_data_path:
+              componentInputParameter: source_data_path
+        taskInfo:
+          name: prepare-data
+      prepare-deployment:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-prepare-deployment
+        dependentTasks:
+        - select-model
+        - train-model
+        inputs:
+          artifacts:
+            decision:
+              taskOutputArtifact:
+                outputArtifactKey: decision
+                producerTask: select-model
+            model_artifacts:
+              taskOutputArtifact:
+                outputArtifactKey: model_artifacts
+                producerTask: train-model
+        taskInfo:
+          name: prepare-deployment
+      select-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-select-model
+        dependentTasks:
+        - evaluate-model
+        - train-model
+        inputs:
+          artifacts:
+            metrics:
+              taskOutputArtifact:
+                outputArtifactKey: metrics
+                producerTask: evaluate-model
+            model_artifacts:
+              taskOutputArtifact:
+                outputArtifactKey: model_artifacts
+                producerTask: train-model
+          parameters:
+            minimum_f1_weighted:
+              componentInputParameter: minimum_f1_weighted
+        taskInfo:
+          name: select-model
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - prepare-data
+        inputs:
+          artifacts:
+            prepared_data:
+              taskOutputArtifact:
+                outputArtifactKey: prepared_data
+                producerTask: prepare-data
+          parameters:
+            feature_set:
+              componentInputParameter: feature_set
+            run_name:
+              componentInputParameter: run_name
+            tracking_uri:
+              componentInputParameter: tracking_uri
+        taskInfo:
+          name: train-model
+  inputDefinitions:
+    parameters:
+      feature_set:
+        defaultValue: events
+        isOptional: true
+        parameterType: STRING
+      minimum_f1_weighted:
+        defaultValue: 0.8
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      run_name:
+        defaultValue: kubeflow-random-forest-events
+        isOptional: true
+        parameterType: STRING
+      source_data_path:
+        defaultValue: data/kubernetes_failures.csv
+        isOptional: true
+        parameterType: STRING
+      tracking_uri:
+        defaultValue: http://mlflow.mlops-poc.svc.cluster.local:5000
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.14.6

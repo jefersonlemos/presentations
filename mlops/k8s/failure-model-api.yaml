@@ -9,7 +9,8 @@ metadata:
   name: failure-model-api-config
   namespace: mlops-poc
 data:
-  MODEL_PATH: /app/artifacts/failure_model_events/model.joblib
+  KSERVE_INFER_URL: http://failure-model-predictor.mlops-poc.svc.cluster.local/v2/models/failure-model/infer
+  MODEL_CLASSES: crash_loop,healthy,image_pull_error,oom_killed,probe_failure,scheduling_failure
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -27,14 +28,11 @@ spec:
     metadata:
       labels:
         app: failure-model-api
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/path: /metrics
-        prometheus.io/port: "8000"
     spec:
       containers:
         - name: api
-          image: ttl.sh/failure-model-api-1780445600:24h
+          # Build and push a new API proxy image before applying this manifest.
+          image: ttl.sh/failure-model-api-kserve-20260608:24h
           imagePullPolicy: Always
           ports:
             - name: http

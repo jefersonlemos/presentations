@@ -1,0 +1,41 @@
+kserve:
+  createSharedResources: true
+
+  controller:
+    deploymentMode: Standard
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
+    rbacProxy:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 50m
+          memory: 96Mi
+    gateway:
+      disableIngressCreation: true
+      ingressGateway:
+        enableGatewayApi: false
+        createGateway: false
+
+  localmodel:
+    enabled: false
+
+  metricsaggregator:
+    enableMetricAggregation: "false"
+    enablePrometheusScraping: "false"
+
+  storage:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi

@@ -1,0 +1,43 @@
+alertmanager:
+  enabled: false
+
+kube-state-metrics:
+  enabled: false
+
+prometheus-node-exporter:
+  enabled: false
+
+prometheus-pushgateway:
+  enabled: false
+
+server:
+  persistentVolume:
+    enabled: false
+  retention: 6h
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 384Mi
+
+extraScrapeConfigs: |
+  - job_name: failure-model-api
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - failure-model-api.mlops-poc.svc.cluster.local:80
+        labels:
+          namespace: mlops-poc
+          service: failure-model-api
+          component: fastapi
+  - job_name: failure-model-kserve
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - failure-model-predictor.mlops-poc.svc.cluster.local:80
+        labels:
+          namespace: mlops-poc
+          service: failure-model-predictor
+          component: kserve

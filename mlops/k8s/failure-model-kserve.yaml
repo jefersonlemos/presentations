@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: failure-model-s3
+  namespace: mlops-poc
+  annotations:
+    serving.kserve.io/s3-endpoint: minio.mlops-poc.svc.cluster.local:9000
+    serving.kserve.io/s3-usehttps: "0"
+    serving.kserve.io/s3-region: us-east-1
+    serving.kserve.io/s3-useanoncredential: "false"
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: minioadmin
+  AWS_SECRET_ACCESS_KEY: minioadmin
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: failure-model-kserve
+  namespace: mlops-poc
+secrets:
+  - name: failure-model-s3
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: failure-model
+  namespace: mlops-poc
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+spec:
+  predictor:
+    serviceAccountName: failure-model-kserve
+    model:
+      runtime: kserve-sklearnserver
+      modelFormat:
+        name: sklearn
+      protocolVersion: v2
+      storageUri: s3://mlops-models/failure-model/events/
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
