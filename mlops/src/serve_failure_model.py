@@ -4,7 +4,7 @@ from typing import Dict, List
 
 import httpx
 from fastapi import FastAPI, HTTPException
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel, Field
 from starlette.responses import Response
 
@@ -41,6 +41,21 @@ PREDICTION_COUNT = Counter(
     "Total predictions by predicted failure type.",
     ["failure_type"],
 )
+APP_PREDICTION_COUNT = Counter(
+    "failure_model_app_predictions_total",
+    "Total predictions by application and predicted failure type.",
+    ["app", "failure_type"],
+)
+APP_RISK_SCORE = Gauge(
+    "failure_model_app_risk_score",
+    "Latest predicted risk score by application.",
+    ["app"],
+)
+APP_CLASS_PROBABILITY = Gauge(
+    "failure_model_app_class_probability",
+    "Latest predicted class probability by application and failure type.",
+    ["app", "failure_type"],
+)
 REQUEST_LATENCY = Histogram(
     "failure_model_prediction_latency_seconds",
     "Prediction request latency in seconds.",
@@ -48,6 +63,7 @@ REQUEST_LATENCY = Histogram(
 
 
 class KubernetesObservation(BaseModel):
+    app_name: str = Field(default="unknown", min_length=1)
     restart_count: int = Field(ge=0)
     cpu_usage_pct: float = Field(ge=0, le=100)
     memory_usage_pct: float = Field(ge=0, le=100)
@@ -198,8 +214,19 @@ async def predict(observation: KubernetesObservation):
             risk_score = 0.0 if predicted_failure_type == "healthy" else 1.0
 
         PREDICTION_COUNT.labels(failure_type=predicted_failure_type).inc()
+        APP_PREDICTION_COUNT.labels(
+            app=observation.app_name,
+            failure_type=predicted_failure_type,
+        ).inc()
+        APP_RISK_SCORE.labels(app=observation.app_name).set(risk_score)
+        for label, probability in probabilities.items():
+            APP_CLASS_PROBABILITY.labels(
+                app=observation.app_name,
+                failure_type=label,
+            ).set(probability)
 
         return {
+            "app_name": observation.app_name,
             "predicted_failure_type": predicted_failure_type,
             "risk_score": round(risk_score, 4),
             "class_probabilities": {

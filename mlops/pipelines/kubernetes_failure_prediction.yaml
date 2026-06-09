@@ -3,7 +3,13 @@
 # Inputs:
 #    feature_set: str [Default: 'events']
 #    minimum_f1_weighted: float [Default: 0.8]
+#    model_bucket: str [Default: 'mlops-models']
+#    model_object_prefix: str [Default: 'failure-model/events']
+#    predict_url: str [Default: 'http://failure-model-api.mlops-poc.svc.cluster.local/predict']
 #    run_name: str [Default: 'kubeflow-random-forest-events']
+#    s3_access_key_id: str [Default: 'minioadmin']
+#    s3_endpoint_url: str [Default: 'http://minio.mlops-poc.svc.cluster.local:9000']
+#    s3_secret_access_key: str [Default: 'minioadmin']
 #    source_data_path: str [Default: 'data/kubernetes_failures.csv']
 #    tracking_uri: str [Default: 'http://mlflow.mlops-poc.svc.cluster.local:5000']
 components:
@@ -45,9 +51,57 @@ components:
           artifactType:
             schemaTitle: system.Model
             schemaVersion: 0.0.1
+      parameters:
+        bucket:
+          parameterType: STRING
+        model_object_prefix:
+          parameterType: STRING
     outputDefinitions:
       artifacts:
         deployment_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-prepare-inferenceservice-patch:
+    executorLabel: exec-prepare-inferenceservice-patch
+    inputDefinitions:
+      artifacts:
+        publish_result:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        patch_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-publish-selected-model:
+    executorLabel: exec-publish-selected-model
+    inputDefinitions:
+      artifacts:
+        decision:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        model_artifacts:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+      parameters:
+        access_key_id:
+          parameterType: STRING
+        bucket:
+          parameterType: STRING
+        endpoint_url:
+          parameterType: STRING
+        model_object_prefix:
+          parameterType: STRING
+        secret_access_key:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        publish_result:
           artifactType:
             schemaTitle: system.Artifact
             schemaVersion: 0.0.1
@@ -69,6 +123,23 @@ components:
     outputDefinitions:
       artifacts:
         decision:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-smoke-test-serving:
+    executorLabel: exec-smoke-test-serving
+    inputDefinitions:
+      artifacts:
+        publish_result:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        predict_url:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        smoke_test_result:
           artifactType:
             schemaTitle: system.Artifact
             schemaVersion: 0.0.1
@@ -118,12 +189,50 @@ deploymentSpec:
     exec-prepare-deployment:
       container:
         args:
-        - import json,sys;decision=json.load(open(sys.argv[2]));manifest='MODEL_PATH='
-          + sys.argv[1] + '/model.joblib\n'+ 'SELECTED=' + str(decision['selected']).lower()
-          + '\n';open(sys.argv[3], 'w').write(manifest)
+        - import json,sys;decision=json.load(open(sys.argv[2]));storage_uri='s3://'
+          + sys.argv[3].strip('/') + '/' + sys.argv[4].strip('/') + '/';manifest='SELECTED='
+          + str(decision['selected']).lower() + '\n'+ 'MODEL_PATH=' + sys.argv[1]
+          + '/model.joblib\n'+ 'STORAGE_URI=' + storage_uri + '\n';open(sys.argv[5],
+          'w').write(manifest)
         - '{{$.inputs.artifacts[''model_artifacts''].path}}'
         - '{{$.inputs.artifacts[''decision''].path}}'
+        - '{{$.inputs.parameters[''bucket'']}}'
+        - '{{$.inputs.parameters[''model_object_prefix'']}}'
         - '{{$.outputs.artifacts[''deployment_manifest''].path}}'
+        command:
+        - python3
+        - -c
+        image: ttl.sh/failure-model-training-REPLACE:24h
+    exec-prepare-inferenceservice-patch:
+      container:
+        args:
+        - 'import json,sys;result=json.load(open(sys.argv[1]));patch={''spec'':{''predictor'':{''model'':{''storageUri'':result[''storage_uri'']}}}};open(sys.argv[2],
+          ''w'').write(json.dumps({''selected'': result[''selected''],''published'':
+          result[''published''],''storage_uri'': result[''storage_uri''],''kubectl_patch'':
+          patch}, indent=2) + ''\n'')'
+        - '{{$.inputs.artifacts[''publish_result''].path}}'
+        - '{{$.outputs.artifacts[''patch_manifest''].path}}'
+        command:
+        - python3
+        - -c
+        image: ttl.sh/failure-model-training-REPLACE:24h
+    exec-publish-selected-model:
+      container:
+        args:
+        - "import json,subprocess,sys;decision=json.load(open(sys.argv[2]));bucket=sys.argv[3];prefix=sys.argv[4].strip('/');storage_uri='s3://'\
+          \ + bucket + '/' + prefix + '/';result={'selected': decision['selected'],\
+          \ 'published': False, 'storage_uri': storage_uri, 'f1_weighted': decision['f1_weighted']};\n\
+          if decision['selected']:\n    subprocess.check_call(['python3','src/publish_model_to_minio.py','--model-path',sys.argv[1]\
+          \ + '/model.joblib','--bucket',bucket,'--key',prefix + '/model.joblib','--endpoint-url',sys.argv[5],'--access-key-id',sys.argv[6],'--secret-access-key',sys.argv[7]]);result['published']=True\n\
+          json.dump(result, open(sys.argv[8], 'w'), indent=2)"
+        - '{{$.inputs.artifacts[''model_artifacts''].path}}'
+        - '{{$.inputs.artifacts[''decision''].path}}'
+        - '{{$.inputs.parameters[''bucket'']}}'
+        - '{{$.inputs.parameters[''model_object_prefix'']}}'
+        - '{{$.inputs.parameters[''endpoint_url'']}}'
+        - '{{$.inputs.parameters[''access_key_id'']}}'
+        - '{{$.inputs.parameters[''secret_access_key'']}}'
+        - '{{$.outputs.artifacts[''publish_result''].path}}'
         command:
         - python3
         - -c
@@ -138,6 +247,23 @@ deploymentSpec:
         - '{{$.inputs.artifacts[''model_artifacts''].path}}'
         - '{{$.inputs.parameters[''minimum_f1_weighted'']}}'
         - '{{$.outputs.artifacts[''decision''].path}}'
+        command:
+        - python3
+        - -c
+        image: ttl.sh/failure-model-training-REPLACE:24h
+    exec-smoke-test-serving:
+      container:
+        args:
+        - "import json,sys,urllib.request;result=json.load(open(sys.argv[1]));out={'selected':\
+          \ result['selected'], 'published': result['published'], 'tested': False};\n\
+          if result['published']:\n    payload=json.dumps({'restart_count':3,'cpu_usage_pct':58.0,'memory_usage_pct':97.0,'pod_ready':0,'last_exit_code':137,'waiting_reason':'OOMKilled','oom_killed_count':2,'image_pull_errors':0,'failed_scheduling_events':0,'readiness_probe_failures':2}).encode();req=urllib.request.Request(sys.argv[2],\
+          \ data=payload, headers={'Content-Type':'application/json'});resp=urllib.request.urlopen(req,\
+          \ timeout=20);out.update({'tested': True, 'status': resp.status, 'response':\
+          \ resp.read().decode('utf-8')[:1000]})\njson.dump(out, open(sys.argv[3],\
+          \ 'w'), indent=2)"
+        - '{{$.inputs.artifacts[''publish_result''].path}}'
+        - '{{$.inputs.parameters[''predict_url'']}}'
+        - '{{$.outputs.artifacts[''smoke_test_result''].path}}'
         command:
         - python3
         - -c
@@ -208,8 +334,60 @@ root:
               taskOutputArtifact:
                 outputArtifactKey: model_artifacts
                 producerTask: train-model
+          parameters:
+            bucket:
+              componentInputParameter: model_bucket
+            model_object_prefix:
+              componentInputParameter: model_object_prefix
         taskInfo:
           name: prepare-deployment
+      prepare-inferenceservice-patch:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-prepare-inferenceservice-patch
+        dependentTasks:
+        - prepare-deployment
+        - publish-selected-model
+        inputs:
+          artifacts:
+            publish_result:
+              taskOutputArtifact:
+                outputArtifactKey: publish_result
+                producerTask: publish-selected-model
+        taskInfo:
+          name: prepare-inferenceservice-patch
+      publish-selected-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-publish-selected-model
+        dependentTasks:
+        - select-model
+        - train-model
+        inputs:
+          artifacts:
+            decision:
+              taskOutputArtifact:
+                outputArtifactKey: decision
+                producerTask: select-model
+            model_artifacts:
+              taskOutputArtifact:
+                outputArtifactKey: model_artifacts
+                producerTask: train-model
+          parameters:
+            access_key_id:
+              componentInputParameter: s3_access_key_id
+            bucket:
+              componentInputParameter: model_bucket
+            endpoint_url:
+              componentInputParameter: s3_endpoint_url
+            model_object_prefix:
+              componentInputParameter: model_object_prefix
+            secret_access_key:
+              componentInputParameter: s3_secret_access_key
+        taskInfo:
+          name: publish-selected-model
       select-model:
         cachingOptions:
           enableCache: true
@@ -233,6 +411,24 @@ root:
               componentInputParameter: minimum_f1_weighted
         taskInfo:
           name: select-model
+      smoke-test-serving:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-smoke-test-serving
+        dependentTasks:
+        - publish-selected-model
+        inputs:
+          artifacts:
+            publish_result:
+              taskOutputArtifact:
+                outputArtifactKey: publish_result
+                producerTask: publish-selected-model
+          parameters:
+            predict_url:
+              componentInputParameter: predict_url
+        taskInfo:
+          name: smoke-test-serving
       train-model:
         cachingOptions:
           enableCache: true
@@ -265,8 +461,32 @@ root:
         defaultValue: 0.8
         isOptional: true
         parameterType: NUMBER_DOUBLE
+      model_bucket:
+        defaultValue: mlops-models
+        isOptional: true
+        parameterType: STRING
+      model_object_prefix:
+        defaultValue: failure-model/events
+        isOptional: true
+        parameterType: STRING
+      predict_url:
+        defaultValue: http://failure-model-api.mlops-poc.svc.cluster.local/predict
+        isOptional: true
+        parameterType: STRING
       run_name:
         defaultValue: kubeflow-random-forest-events
+        isOptional: true
+        parameterType: STRING
+      s3_access_key_id:
+        defaultValue: minioadmin
+        isOptional: true
+        parameterType: STRING
+      s3_endpoint_url:
+        defaultValue: http://minio.mlops-poc.svc.cluster.local:9000
+        isOptional: true
+        parameterType: STRING
+      s3_secret_access_key:
+        defaultValue: minioadmin
         isOptional: true
         parameterType: STRING
       source_data_path:
