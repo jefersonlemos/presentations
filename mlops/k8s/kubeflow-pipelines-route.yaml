@@ -1,0 +1,35 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-mlops-poc-routes-to-kubeflow-pipelines
+  namespace: kubeflow
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: mlops-poc
+  to:
+    - group: ""
+      kind: Service
+      name: ml-pipeline-ui
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: kubeflow-pipelines-route
+  namespace: mlops-poc
+spec:
+  parentRefs:
+    - name: mlops-poc-gateway
+  hostnames:
+    - kubeflow-pipelines.mlops.local
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: ml-pipeline-ui
+          namespace: kubeflow
+          port: 80
+          weight: 100

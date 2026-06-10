@@ -1,7 +1,12 @@
+import os
+
 from kfp import compiler, dsl
 
 
-TRAINING_IMAGE = "ttl.sh/failure-model-training-REPLACE:24h"
+TRAINING_IMAGE = os.getenv(
+    "TRAINING_IMAGE",
+    "ttl.sh/failure-model-training-post-upgrade-20260609:24h",
+)
 
 
 @dsl.container_component
@@ -26,6 +31,7 @@ def train_model(
     feature_set: str,
     run_name: str,
     tracking_uri: str,
+    n_estimators: int,
     model_artifacts: dsl.Output[dsl.Model],
 ):
     return dsl.ContainerSpec(
@@ -43,6 +49,8 @@ def train_model(
             run_name,
             "--tracking-uri",
             tracking_uri,
+            "--n-estimators",
+            str(n_estimators),
         ],
     )
 
@@ -167,29 +175,56 @@ def publish_selected_model(
 
 
 @dsl.container_component
-def prepare_inferenceservice_patch(
+def deploy_inferenceservice(
     publish_result: dsl.Input[dsl.Artifact],
-    patch_manifest: dsl.Output[dsl.Artifact],
+    namespace: str,
+    inferenceservice_name: str,
+    deployment_result: dsl.Output[dsl.Artifact],
 ):
     return dsl.ContainerSpec(
         image=TRAINING_IMAGE,
         command=["python3", "-c"],
         args=[
             (
-                "import json,sys;"
+                "import datetime,json,ssl,sys,time,urllib.request;"
                 "result=json.load(open(sys.argv[1]));"
-                "patch={"
-                "'spec':{'predictor':{'model':{'storageUri':result['storage_uri']}}}"
-                "};"
-                "open(sys.argv[2], 'w').write(json.dumps({"
+                "namespace=sys.argv[2];name=sys.argv[3];"
+                "out={"
                 "'selected': result['selected'],"
                 "'published': result['published'],"
                 "'storage_uri': result['storage_uri'],"
-                "'kubectl_patch': patch"
-                "}, indent=2) + '\\n')"
+                "'deployed': False};"
+                "\nif result['published']:\n"
+                "    token=open('/var/run/secrets/kubernetes.io/serviceaccount/token').read();"
+                "ca='/var/run/secrets/kubernetes.io/serviceaccount/ca.crt';"
+                "url='https://kubernetes.default.svc/apis/serving.kserve.io/v1beta1/namespaces/'"
+                "+namespace+'/inferenceservices/'+name;"
+                "patch={'metadata':{'annotations':{'mlops-poc/model-published-at':"
+                "datetime.datetime.now(datetime.timezone.utc).isoformat()}},"
+                "'spec':{'predictor':{'model':{'storageUri':result['storage_uri']}}}};"
+                "headers={'Authorization':'Bearer '+token,'Content-Type':'application/merge-patch+json'};"
+                "context=ssl.create_default_context(cafile=ca);"
+                "request=urllib.request.Request(url,data=json.dumps(patch).encode(),"
+                "headers=headers,method='PATCH');"
+                "response=json.load(urllib.request.urlopen(request,context=context,timeout=30));"
+                "generation=response['metadata']['generation'];"
+                "deadline=time.time()+300;"
+                "\n    while time.time() < deadline:\n"
+                "        get_request=urllib.request.Request(url,headers={'Authorization':'Bearer '+token});"
+                "current=json.load(urllib.request.urlopen(get_request,context=context,timeout=30));"
+                "ready=next((c for c in current.get('status',{}).get('conditions',[]) "
+                "if c.get('type')=='Ready'),{});"
+                "\n        if current.get('status',{}).get('observedGeneration',0) >= generation "
+                "and ready.get('status')=='True':\n"
+                "            out.update({'deployed':True,'generation':generation});break\n"
+                "        time.sleep(5)\n"
+                "    if not out['deployed']: raise TimeoutError('InferenceService did not become ready')\n"
+                "json.dump(out,open(sys.argv[4],'w'),indent=2)"
             ),
             publish_result.path,
-            patch_manifest.path,
+            namespace,
+            inferenceservice_name,
+            deployment_result.path,
         ],
     )
 
@@ -211,6 +246,7 @@ def smoke_test_serving(
                 "'tested': False};"
                 "\nif result['published']:\n"
                 "    payload=json.dumps({"
+                "'app_name':'kubeflow-pipeline-smoke-test',"
                 "'restart_count':3,'cpu_usage_pct':58.0,'memory_usage_pct':97.0,"
                 "'pod_ready':0,'last_exit_code':137,'waiting_reason':'OOMKilled',"
                 "'oom_killed_count':2,'image_pull_errors':0,"
@@ -236,6 +272,7 @@ def failure_prediction_pipeline(
     feature_set: str = "events",
     run_name: str = "kubeflow-random-forest-events",
     tracking_uri: str = "http://mlflow.mlops-poc.svc.cluster.local:5000",
+    n_estimators: int = 200,
     minimum_f1_weighted: float = 0.8,
     model_bucket: str = "mlops-models",
     model_object_prefix: str = "failure-model/events",
@@ -243,6 +280,8 @@ def failure_prediction_pipeline(
     s3_access_key_id: str = "minioadmin",
     s3_secret_access_key: str = "minioadmin",
     predict_url: str = "http://failure-model-api.mlops-poc.svc.cluster.local/predict",
+    serving_namespace: str = "mlops-poc",
+    inferenceservice_name: str = "failure-model",
 ):
     prepared_data = prepare_data(source_data_path=source_data_path)
     trained_model = train_model(
@@ -250,6 +289,7 @@ def failure_prediction_pipeline(
         feature_set=feature_set,
         run_name=run_name,
         tracking_uri=tracking_uri,
+        n_estimators=n_estimators,
     )
     evaluation = evaluate_model(model_artifacts=trained_model.outputs["model_artifacts"])
     decision = select_model(
@@ -272,13 +312,15 @@ def failure_prediction_pipeline(
         access_key_id=s3_access_key_id,
         secret_access_key=s3_secret_access_key,
     )
-    prepare_inferenceservice_patch(
+    deployed_model = deploy_inferenceservice(
         publish_result=published_model.outputs["publish_result"],
+        namespace=serving_namespace,
+        inferenceservice_name=inferenceservice_name,
     ).after(deployment)
     smoke_test_serving(
         publish_result=published_model.outputs["publish_result"],
         predict_url=predict_url,
-    )
+    ).after(deployed_model)
 
 
 if __name__ == "__main__":

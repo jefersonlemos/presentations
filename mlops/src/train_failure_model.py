@@ -8,7 +8,7 @@ import mlflow.sklearn
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, f1_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, classification_report, f1_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
@@ -135,6 +135,8 @@ def train_model(
     predictions = model.predict(x_test)
     metrics = {
         "accuracy": accuracy_score(y_test, predictions),
+        "balanced_accuracy": balanced_accuracy_score(y_test, predictions),
+        "f1_macro": f1_score(y_test, predictions, average="macro"),
         "f1_weighted": f1_score(y_test, predictions, average="weighted"),
         "classification_report": classification_report(
             y_test,
@@ -210,6 +212,8 @@ def log_to_mlflow(
             }
         )
         mlflow.log_metric("accuracy", metrics["accuracy"])
+        mlflow.log_metric("balanced_accuracy", metrics["balanced_accuracy"])
+        mlflow.log_metric("f1_macro", metrics["f1_macro"])
         mlflow.log_metric("f1_weighted", metrics["f1_weighted"])
 
         mlflow.log_artifact(args.data, artifact_path="data")
@@ -259,6 +263,8 @@ def main():
     print(f"schema_artifact: {schema_path}")
     print(f"mlflow_run_id: {run_id}")
     print(f"accuracy: {metrics['accuracy']:.4f}")
+    print(f"balanced_accuracy: {metrics['balanced_accuracy']:.4f}")
+    print(f"f1_macro: {metrics['f1_macro']:.4f}")
     print(f"f1_weighted: {metrics['f1_weighted']:.4f}")
 
 

@@ -430,7 +430,7 @@ spec:
             - name: grafana-dashboard-providers
               mountPath: /etc/grafana/provisioning/dashboards
               readOnly: true
-            - name: grafana-failure-model-dashboard
+            - name: grafana-application-risk-dashboard
               mountPath: /var/lib/grafana/dashboards
               readOnly: true
           readinessProbe:
@@ -459,9 +459,9 @@ spec:
         - name: grafana-dashboard-providers
           configMap:
             name: grafana-dashboard-providers
-        - name: grafana-failure-model-dashboard
+        - name: grafana-application-risk-dashboard
           configMap:
-            name: grafana-failure-model-dashboard
+            name: grafana-application-risk-dashboard
 ---
 apiVersion: v1
 kind: Service

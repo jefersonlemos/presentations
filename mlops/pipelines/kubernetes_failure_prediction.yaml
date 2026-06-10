@@ -2,17 +2,39 @@
 # Name: kubernetes-failure-prediction
 # Inputs:
 #    feature_set: str [Default: 'events']
+#    inferenceservice_name: str [Default: 'failure-model']
 #    minimum_f1_weighted: float [Default: 0.8]
 #    model_bucket: str [Default: 'mlops-models']
 #    model_object_prefix: str [Default: 'failure-model/events']
+#    n_estimators: int [Default: 200.0]
 #    predict_url: str [Default: 'http://failure-model-api.mlops-poc.svc.cluster.local/predict']
 #    run_name: str [Default: 'kubeflow-random-forest-events']
 #    s3_access_key_id: str [Default: 'minioadmin']
 #    s3_endpoint_url: str [Default: 'http://minio.mlops-poc.svc.cluster.local:9000']
 #    s3_secret_access_key: str [Default: 'minioadmin']
+#    serving_namespace: str [Default: 'mlops-poc']
 #    source_data_path: str [Default: 'data/kubernetes_failures.csv']
 #    tracking_uri: str [Default: 'http://mlflow.mlops-poc.svc.cluster.local:5000']
 components:
+  comp-deploy-inferenceservice:
+    executorLabel: exec-deploy-inferenceservice
+    inputDefinitions:
+      artifacts:
+        publish_result:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        inferenceservice_name:
+          parameterType: STRING
+        namespace:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        deployment_result:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
   comp-evaluate-model:
     executorLabel: exec-evaluate-model
     inputDefinitions:
@@ -59,20 +81,6 @@ components:
     outputDefinitions:
       artifacts:
         deployment_manifest:
-          artifactType:
-            schemaTitle: system.Artifact
-            schemaVersion: 0.0.1
-  comp-prepare-inferenceservice-patch:
-    executorLabel: exec-prepare-inferenceservice-patch
-    inputDefinitions:
-      artifacts:
-        publish_result:
-          artifactType:
-            schemaTitle: system.Artifact
-            schemaVersion: 0.0.1
-    outputDefinitions:
-      artifacts:
-        patch_manifest:
           artifactType:
             schemaTitle: system.Artifact
             schemaVersion: 0.0.1
@@ -154,6 +162,8 @@ components:
       parameters:
         feature_set:
           parameterType: STRING
+        n_estimators:
+          parameterType: NUMBER_INTEGER
         run_name:
           parameterType: STRING
         tracking_uri:
@@ -166,6 +176,28 @@ components:
             schemaVersion: 0.0.1
 deploymentSpec:
   executors:
+    exec-deploy-inferenceservice:
+      container:
+        args:
+        - "import datetime,json,ssl,sys,time,urllib.request;result=json.load(open(sys.argv[1]));namespace=sys.argv[2];name=sys.argv[3];out={'selected':\
+          \ result['selected'],'published': result['published'],'storage_uri': result['storage_uri'],'deployed':\
+          \ False};\nif result['published']:\n    token=open('/var/run/secrets/kubernetes.io/serviceaccount/token').read();ca='/var/run/secrets/kubernetes.io/serviceaccount/ca.crt';url='https://kubernetes.default.svc/apis/serving.kserve.io/v1beta1/namespaces/'+namespace+'/inferenceservices/'+name;patch={'metadata':{'annotations':{'mlops-poc/model-published-at':datetime.datetime.now(datetime.timezone.utc).isoformat()}},'spec':{'predictor':{'model':{'storageUri':result['storage_uri']}}}};headers={'Authorization':'Bearer\
+          \ '+token,'Content-Type':'application/merge-patch+json'};context=ssl.create_default_context(cafile=ca);request=urllib.request.Request(url,data=json.dumps(patch).encode(),headers=headers,method='PATCH');response=json.load(urllib.request.urlopen(request,context=context,timeout=30));generation=response['metadata']['generation'];deadline=time.time()+300;\n\
+          \    while time.time() < deadline:\n        get_request=urllib.request.Request(url,headers={'Authorization':'Bearer\
+          \ '+token});current=json.load(urllib.request.urlopen(get_request,context=context,timeout=30));ready=next((c\
+          \ for c in current.get('status',{}).get('conditions',[]) if c.get('type')=='Ready'),{});\n\
+          \        if current.get('status',{}).get('observedGeneration',0) >= generation\
+          \ and ready.get('status')=='True':\n            out.update({'deployed':True,'generation':generation});break\n\
+          \        time.sleep(5)\n    if not out['deployed']: raise TimeoutError('InferenceService\
+          \ did not become ready')\njson.dump(out,open(sys.argv[4],'w'),indent=2)"
+        - '{{$.inputs.artifacts[''publish_result''].path}}'
+        - '{{$.inputs.parameters[''namespace'']}}'
+        - '{{$.inputs.parameters[''inferenceservice_name'']}}'
+        - '{{$.outputs.artifacts[''deployment_result''].path}}'
+        command:
+        - python3
+        - -c
+        image: ttl.sh/failure-model-training-baseline-20260610:24h
     exec-evaluate-model:
       container:
         args:
@@ -175,7 +207,7 @@ deploymentSpec:
         command:
         - sh
         - -c
-        image: ttl.sh/failure-model-training-REPLACE:24h
+        image: ttl.sh/failure-model-training-baseline-20260610:24h
     exec-prepare-data:
       container:
         args:
@@ -185,7 +217,7 @@ deploymentSpec:
         command:
         - sh
         - -c
-        image: ttl.sh/failure-model-training-REPLACE:24h
+        image: ttl.sh/failure-model-training-baseline-20260610:24h
     exec-prepare-deployment:
       container:
         args:
@@ -202,20 +234,7 @@ deploymentSpec:
         command:
         - python3
         - -c
-        image: ttl.sh/failure-model-training-REPLACE:24h
-    exec-prepare-inferenceservice-patch:
-      container:
-        args:
-        - 'import json,sys;result=json.load(open(sys.argv[1]));patch={''spec'':{''predictor'':{''model'':{''storageUri'':result[''storage_uri'']}}}};open(sys.argv[2],
-          ''w'').write(json.dumps({''selected'': result[''selected''],''published'':
-          result[''published''],''storage_uri'': result[''storage_uri''],''kubectl_patch'':
-          patch}, indent=2) + ''\n'')'
-        - '{{$.inputs.artifacts[''publish_result''].path}}'
-        - '{{$.outputs.artifacts[''patch_manifest''].path}}'
-        command:
-        - python3
-        - -c
-        image: ttl.sh/failure-model-training-REPLACE:24h
+        image: ttl.sh/failure-model-training-baseline-20260610:24h
     exec-publish-selected-model:
       container:
         args:
@@ -236,7 +255,7 @@ deploymentSpec:
         command:
         - python3
         - -c
-        image: ttl.sh/failure-model-training-REPLACE:24h
+        image: ttl.sh/failure-model-training-baseline-20260610:24h
     exec-select-model:
       container:
         args:
@@ -250,13 +269,13 @@ deploymentSpec:
         command:
         - python3
         - -c
-        image: ttl.sh/failure-model-training-REPLACE:24h
+        image: ttl.sh/failure-model-training-baseline-20260610:24h
     exec-smoke-test-serving:
       container:
         args:
         - "import json,sys,urllib.request;result=json.load(open(sys.argv[1]));out={'selected':\
           \ result['selected'], 'published': result['published'], 'tested': False};\n\
-          if result['published']:\n    payload=json.dumps({'restart_count':3,'cpu_usage_pct':58.0,'memory_usage_pct':97.0,'pod_ready':0,'last_exit_code':137,'waiting_reason':'OOMKilled','oom_killed_count':2,'image_pull_errors':0,'failed_scheduling_events':0,'readiness_probe_failures':2}).encode();req=urllib.request.Request(sys.argv[2],\
+          if result['published']:\n    payload=json.dumps({'app_name':'kubeflow-pipeline-smoke-test','restart_count':3,'cpu_usage_pct':58.0,'memory_usage_pct':97.0,'pod_ready':0,'last_exit_code':137,'waiting_reason':'OOMKilled','oom_killed_count':2,'image_pull_errors':0,'failed_scheduling_events':0,'readiness_probe_failures':2}).encode();req=urllib.request.Request(sys.argv[2],\
           \ data=payload, headers={'Content-Type':'application/json'});resp=urllib.request.urlopen(req,\
           \ timeout=20);out.update({'tested': True, 'status': resp.status, 'response':\
           \ resp.read().decode('utf-8')[:1000]})\njson.dump(out, open(sys.argv[3],\
@@ -267,7 +286,7 @@ deploymentSpec:
         command:
         - python3
         - -c
-        image: ttl.sh/failure-model-training-REPLACE:24h
+        image: ttl.sh/failure-model-training-baseline-20260610:24h
     exec-train-model:
       container:
         args:
@@ -282,14 +301,37 @@ deploymentSpec:
         - '{{$.inputs.parameters[''run_name'']}}'
         - --tracking-uri
         - '{{$.inputs.parameters[''tracking_uri'']}}'
+        - --n-estimators
+        - '{{$.inputs.parameters[''n_estimators'']}}'
         command:
         - python3
-        image: ttl.sh/failure-model-training-REPLACE:24h
+        image: ttl.sh/failure-model-training-baseline-20260610:24h
 pipelineInfo:
   name: kubernetes-failure-prediction
 root:
   dag:
     tasks:
+      deploy-inferenceservice:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-deploy-inferenceservice
+        dependentTasks:
+        - prepare-deployment
+        - publish-selected-model
+        inputs:
+          artifacts:
+            publish_result:
+              taskOutputArtifact:
+                outputArtifactKey: publish_result
+                producerTask: publish-selected-model
+          parameters:
+            inferenceservice_name:
+              componentInputParameter: inferenceservice_name
+            namespace:
+              componentInputParameter: serving_namespace
+        taskInfo:
+          name: deploy-inferenceservice
       evaluate-model:
         cachingOptions:
           enableCache: true
@@ -341,22 +383,6 @@ root:
               componentInputParameter: model_object_prefix
         taskInfo:
           name: prepare-deployment
-      prepare-inferenceservice-patch:
-        cachingOptions:
-          enableCache: true
-        componentRef:
-          name: comp-prepare-inferenceservice-patch
-        dependentTasks:
-        - prepare-deployment
-        - publish-selected-model
-        inputs:
-          artifacts:
-            publish_result:
-              taskOutputArtifact:
-                outputArtifactKey: publish_result
-                producerTask: publish-selected-model
-        taskInfo:
-          name: prepare-inferenceservice-patch
       publish-selected-model:
         cachingOptions:
           enableCache: true
@@ -417,6 +443,7 @@ root:
         componentRef:
           name: comp-smoke-test-serving
         dependentTasks:
+        - deploy-inferenceservice
         - publish-selected-model
         inputs:
           artifacts:
@@ -445,6 +472,8 @@ root:
           parameters:
             feature_set:
               componentInputParameter: feature_set
+            n_estimators:
+              componentInputParameter: n_estimators
             run_name:
               componentInputParameter: run_name
             tracking_uri:
@@ -455,6 +484,10 @@ root:
     parameters:
       feature_set:
         defaultValue: events
+        isOptional: true
+        parameterType: STRING
+      inferenceservice_name:
+        defaultValue: failure-model
         isOptional: true
         parameterType: STRING
       minimum_f1_weighted:
@@ -469,6 +502,10 @@ root:
         defaultValue: failure-model/events
         isOptional: true
         parameterType: STRING
+      n_estimators:
+        defaultValue: 200.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
       predict_url:
         defaultValue: http://failure-model-api.mlops-poc.svc.cluster.local/predict
         isOptional: true
@@ -487,6 +524,10 @@ root:
         parameterType: STRING
       s3_secret_access_key:
         defaultValue: minioadmin
+        isOptional: true
+        parameterType: STRING
+      serving_namespace:
+        defaultValue: mlops-poc
         isOptional: true
         parameterType: STRING
       source_data_path:
