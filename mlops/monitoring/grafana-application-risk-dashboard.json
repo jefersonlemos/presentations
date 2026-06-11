@@ -303,7 +303,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(failure_model_correct_predictions_total[2m])) / sum(increase(failure_model_labeled_predictions_total[2m]))",
+          "expr": "sum(increase(failure_model_correct_predictions_total[5m])) / clamp_min(sum(increase(failure_model_labeled_predictions_total[5m])), 1)",
           "legendFormat": "accuracy",
           "refId": "A"
         }
@@ -331,12 +331,12 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(failure_model_correct_predictions_total[1m])) / sum(rate(failure_model_labeled_predictions_total[1m]))",
+          "expr": "sum(increase(failure_model_correct_predictions_total[5m])) / clamp_min(sum(increase(failure_model_labeled_predictions_total[5m])), 1)",
           "legendFormat": "production accuracy",
           "refId": "A"
         },
         {
-          "expr": "1 - (sum(rate(failure_model_correct_predictions_total[1m])) / sum(rate(failure_model_labeled_predictions_total[1m])))",
+          "expr": "1 - (sum(increase(failure_model_correct_predictions_total[5m])) / clamp_min(sum(increase(failure_model_labeled_predictions_total[5m])), 1))",
           "legendFormat": "error rate",
           "refId": "B"
         }

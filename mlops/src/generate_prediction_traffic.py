@@ -78,6 +78,22 @@ DRIFT_SCENARIOS = {
     },
 }
 
+DRIFT_AFTER_RETRAIN_SCENARIOS = {
+    "recommendations": {
+        "expected_failure_type": "probe_failure",
+        "restart_count": 8,
+        "cpu_usage_pct": 76.0,
+        "memory_usage_pct": 72.0,
+        "pod_ready": 0,
+        "last_exit_code": 1,
+        "waiting_reason": "CrashLoopBackOff",
+        "oom_killed_count": 0,
+        "image_pull_errors": 0,
+        "failed_scheduling_events": 0,
+        "readiness_probe_failures": 4,
+    },
+}
+
 
 def jitter(payload, rng):
     result = dict(payload)
@@ -99,14 +115,19 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--scenario",
-        choices=["baseline", "drift"],
+        choices=["baseline", "drift", "drift_after_retrain"],
         default="baseline",
         help="Traffic and delayed ground-truth scenario.",
     )
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
-    scenarios = BASELINE_SCENARIOS if args.scenario == "baseline" else DRIFT_SCENARIOS
+    if args.scenario == "baseline":
+        scenarios = BASELINE_SCENARIOS
+    elif args.scenario == "drift":
+        scenarios = DRIFT_SCENARIOS
+    else:
+        scenarios = DRIFT_AFTER_RETRAIN_SCENARIOS
     correct = 0
     total = 0
     for _ in range(args.rounds):

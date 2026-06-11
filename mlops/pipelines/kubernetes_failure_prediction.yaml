@@ -197,7 +197,7 @@ deploymentSpec:
         command:
         - python3
         - -c
-        image: ttl.sh/failure-model-training-baseline-20260610:24h
+        image: ttl.sh/failure-model-training-post-upgrade-20260610:24h
     exec-evaluate-model:
       container:
         args:
@@ -207,7 +207,7 @@ deploymentSpec:
         command:
         - sh
         - -c
-        image: ttl.sh/failure-model-training-baseline-20260610:24h
+        image: ttl.sh/failure-model-training-post-upgrade-20260610:24h
     exec-prepare-data:
       container:
         args:
@@ -217,7 +217,7 @@ deploymentSpec:
         command:
         - sh
         - -c
-        image: ttl.sh/failure-model-training-baseline-20260610:24h
+        image: ttl.sh/failure-model-training-post-upgrade-20260610:24h
     exec-prepare-deployment:
       container:
         args:
@@ -234,7 +234,7 @@ deploymentSpec:
         command:
         - python3
         - -c
-        image: ttl.sh/failure-model-training-baseline-20260610:24h
+        image: ttl.sh/failure-model-training-post-upgrade-20260610:24h
     exec-publish-selected-model:
       container:
         args:
@@ -255,7 +255,7 @@ deploymentSpec:
         command:
         - python3
         - -c
-        image: ttl.sh/failure-model-training-baseline-20260610:24h
+        image: ttl.sh/failure-model-training-post-upgrade-20260610:24h
     exec-select-model:
       container:
         args:
@@ -269,7 +269,7 @@ deploymentSpec:
         command:
         - python3
         - -c
-        image: ttl.sh/failure-model-training-baseline-20260610:24h
+        image: ttl.sh/failure-model-training-post-upgrade-20260610:24h
     exec-smoke-test-serving:
       container:
         args:
@@ -286,7 +286,7 @@ deploymentSpec:
         command:
         - python3
         - -c
-        image: ttl.sh/failure-model-training-baseline-20260610:24h
+        image: ttl.sh/failure-model-training-post-upgrade-20260610:24h
     exec-train-model:
       container:
         args:
@@ -305,7 +305,7 @@ deploymentSpec:
         - '{{$.inputs.parameters[''n_estimators'']}}'
         command:
         - python3
-        image: ttl.sh/failure-model-training-baseline-20260610:24h
+        image: ttl.sh/failure-model-training-post-upgrade-20260610:24h
 pipelineInfo:
   name: kubernetes-failure-prediction
 root:
